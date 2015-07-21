@@ -30,6 +30,7 @@ func ExampleBuffer() {
 	// Read slow
 	go func() {
 		defer grp.Done()
+		<-time.After(100 * time.Millisecond)
 		io.CopyN(os.Stdout, r2, 5) // "Hello"
 		<-time.After(time.Second)
 		io.Copy(os.Stdout, r2) // "World\n"
@@ -55,6 +56,7 @@ func ExampleBuffer() {
 	// it's done reading data.
 	go func() {
 		defer grp.Done()
+		<-time.After(100 * time.Millisecond)
 		r4 := buf.NextReader()
 		io.CopyN(os.Stdout, r4, 5) // "Hello"
 		r4.Close()                 // tell the buffer you're done reading
