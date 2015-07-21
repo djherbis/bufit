@@ -78,10 +78,6 @@ func main(){
   buf.Close()
 
   grp.Wait()
-  // Output:
-  // Hello World
-  // HelloHelloHello World
-  //  World
 }
 
 ```
