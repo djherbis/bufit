@@ -7,6 +7,8 @@ import (
 	"sync/atomic"
 )
 
+// Fixed address buffer
+
 // Buffer is used to provide multiple readers with access to a shared buffer.
 // Readers may join/leave at any time, however a joining reader will only
 // see whats currently in the buffer onwards. Data is evicted from the buffer
@@ -85,10 +87,11 @@ func (b *Buffer) NextReader() io.ReadCloser {
 // Write appends the given data to the buffer. All active readers will
 // see this write.
 func (b *Buffer) Write(p []byte) (int, error) {
+	data := append(b.data, p...)
 	b.mu.Lock()
 	defer b.cond.Broadcast()
 	defer b.mu.Unlock()
-	b.data = append(b.data, p...)
+	b.data = data
 	return len(p), nil
 }
 
