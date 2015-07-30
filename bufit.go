@@ -87,11 +87,10 @@ func (b *Buffer) NextReader() io.ReadCloser {
 // Write appends the given data to the buffer. All active readers will
 // see this write.
 func (b *Buffer) Write(p []byte) (int, error) {
-	data := append(b.data, p...)
 	b.mu.Lock()
 	defer b.cond.Broadcast()
 	defer b.mu.Unlock()
-	b.data = data
+	b.data = append(b.data, p...)
 	return len(p), nil
 }
 
