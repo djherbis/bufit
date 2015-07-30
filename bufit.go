@@ -7,8 +7,6 @@ import (
 	"sync/atomic"
 )
 
-// Fixed address buffer
-
 // Buffer is used to provide multiple readers with access to a shared buffer.
 // Readers may join/leave at any time, however a joining reader will only
 // see whats currently in the buffer onwards. Data is evicted from the buffer
