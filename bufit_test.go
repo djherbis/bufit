@@ -1,11 +1,195 @@
 package bufit
 
 import (
+	"bytes"
+	"crypto/rand"
 	"io"
+	"io/ioutil"
 	"os"
 	"sync"
+	"testing"
 	"time"
 )
+
+func ExampleBytes() {
+	buf := newRing(make([]byte, 0, 10))
+	io.Copy(os.Stdout, buf)
+	io.Copy(os.Stdout, io.NewSectionReader(buf.clone(), 0, 100))
+
+	io.WriteString(buf, "Hello ")
+	r := io.NewSectionReader(buf.clone(), 0, int64(buf.Len()))
+	io.CopyN(os.Stdout, r, 5)
+	io.CopyN(os.Stdout, buf, 5)
+	io.WriteString(buf, "World")
+	r = io.NewSectionReader(buf.clone(), 0, int64(buf.Len()))
+	io.CopyN(os.Stdout, r, 6)
+
+	io.WriteString(buf, "abcdefg")
+	io.Copy(os.Stdout, buf)
+	io.Copy(os.Stdout, buf)
+
+	io.WriteString(buf, "Hello World")
+	r = io.NewSectionReader(buf.clone(), 0, int64(buf.Len()))
+	io.CopyN(os.Stdout, r, 5)
+	io.CopyN(os.Stdout, buf, 4)
+
+	io.WriteString(buf, "abcdefg")
+	io.Copy(os.Stdout, buf)
+	io.Copy(os.Stdout, buf)
+	//Output:
+	// HelloHello World WorldabcdefgHelloHello Worldabcdefg
+}
+
+type badBuffer []byte
+
+func (b *badBuffer) Write(p []byte) (int, error) {
+	*b = append(*b, p...)
+	return len(p), nil
+}
+
+func (b *badBuffer) Read(p []byte) (n int, err error) {
+	n = copy(p, *b)
+	*b = (*b)[n:]
+	if len(*b) == 0 {
+		err = io.EOF
+	}
+	return n, err
+}
+
+func BenchmarkBuffer(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		benchBuffer(1)
+	}
+	b.ReportAllocs()
+}
+
+func BenchmarkBuffer100(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		benchBuffer(100)
+	}
+	b.ReportAllocs()
+}
+
+func BenchmarkBuffer1000(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		benchBuffer(1000)
+	}
+	b.ReportAllocs()
+}
+
+func benchBuffer(n int) {
+	var grp sync.WaitGroup
+	buf := New()
+	go func() {
+		io.CopyN(buf, rand.Reader, 32*1024*100)
+		buf.Close()
+	}()
+	rs := []io.Reader{}
+	for i := 0; i < n; i++ {
+		rs = append(rs, buf.NextReader())
+	}
+	for _, rdr := range rs {
+		grp.Add(1)
+		go func(r io.Reader) {
+			defer grp.Done()
+			io.Copy(ioutil.Discard, r)
+		}(rdr)
+	}
+	grp.Wait()
+}
+
+func BenchmarkStdBuffer(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		r, w := io.Pipe()
+		go func() {
+			io.CopyN(w, rand.Reader, 32*1024*100)
+			w.Close()
+		}()
+		io.Copy(ioutil.Discard, r)
+	}
+	b.ReportAllocs()
+}
+
+func BenchmarkMyBytes(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		tryBuffer(newRing(nil))
+	}
+	b.ReportAllocs()
+}
+
+func BenchmarkStdBytes(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		tryBuffer(bytes.NewBuffer(nil))
+	}
+	b.ReportAllocs()
+}
+
+func BenchmarkFwdMyBytes(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		tryFwdBuffer(newRing(nil))
+	}
+	b.ReportAllocs()
+}
+
+func BenchmarkStdFwdBytes(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		tryFwdBuffer(bytes.NewBuffer(nil))
+	}
+	b.ReportAllocs()
+}
+
+const tries = 1000
+
+func tryFwdBuffer(buf io.ReadWriter) {
+	for i := 0; i < tries; i++ {
+		io.CopyN(buf, rand.Reader, 60*1024)
+		io.Copy(ioutil.Discard, buf)
+	}
+}
+
+func tryBuffer(buf io.ReadWriter) {
+	for i := 0; i < tries; i++ {
+		io.CopyN(buf, rand.Reader, 60*1024)
+		io.CopyN(ioutil.Discard, buf, 32*1024)
+		io.CopyN(buf, rand.Reader, 60*1024)
+	}
+	io.Copy(ioutil.Discard, buf)
+}
+
+func TestConcurrent(t *testing.T) {
+	var grp sync.WaitGroup
+	buf := New()
+
+	var rs []io.Reader
+	for i := 0; i < 1000; i++ {
+		rs = append(rs, buf.NextReader())
+	}
+
+	testData := bytes.NewBuffer(nil)
+	io.CopyN(testData, rand.Reader, 32*1024*10)
+
+	for _, r := range rs {
+		grp.Add(1)
+		go func(r io.Reader) {
+			defer grp.Done()
+			data, err := ioutil.ReadAll(r)
+			if err != nil {
+				t.Error(err)
+			}
+			if !bytes.Equal(testData.Bytes(), data) {
+				t.Error("unexpected result...", testData.Len(), len(data))
+			}
+		}(r)
+	}
+
+	r := bytes.NewReader(testData.Bytes())
+	for r.Len() > 0 {
+		io.CopyN(buf, r, 32*1024*2)
+		<-time.After(100 * time.Millisecond)
+	}
+	buf.Close()
+	grp.Wait()
+}
 
 func ExampleBuffer() {
 	// Start a new buffer

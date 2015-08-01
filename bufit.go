@@ -14,9 +14,9 @@ import (
 type Buffer struct {
 	mu   sync.RWMutex
 	cond *sync.Cond
-	off  int64
+	off  int
 	rh   readerHeap
-	data []byte
+	buf  *ring
 	life
 }
 
@@ -31,7 +31,7 @@ func (b *Buffer) fetch(r *reader) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	for len(b.data) == 0 && b.alive() && r.alive() {
+	for r.off+r.chunk-b.off == b.buf.Len() && b.alive() && r.alive() {
 		b.cond.Wait()
 	}
 
@@ -39,10 +39,11 @@ func (b *Buffer) fetch(r *reader) {
 		return
 	}
 
-	r.off += int64(r.chunk)
+	r.off += r.chunk
 	diff := r.off - b.off
-	r.data = b.data[diff:]
-	r.chunk = len(r.data)
+	r.data = b.buf.clone()
+	r.data.shift(diff)
+	r.chunk = r.data.Len()
 
 	heap.Fix(&b.rh, r.i)
 	b.shift()
@@ -61,7 +62,7 @@ func (b *Buffer) shift() {
 	}
 
 	if diff := b.rh.Peek().off - b.off; diff > 0 {
-		b.data = b.data[diff:]
+		b.buf.shift(diff)
 		b.off += diff
 	}
 }
@@ -74,9 +75,9 @@ func (b *Buffer) NextReader() io.ReadCloser {
 	defer b.mu.Unlock()
 	r := &reader{
 		buf:   b,
-		chunk: len(b.data),
+		chunk: b.buf.Len(),
 		off:   b.off,
-		data:  b.data,
+		data:  b.buf.clone(),
 	}
 	heap.Push(&b.rh, r)
 	return r
@@ -88,8 +89,7 @@ func (b *Buffer) Write(p []byte) (int, error) {
 	b.mu.Lock()
 	defer b.cond.Broadcast()
 	defer b.mu.Unlock()
-	b.data = append(b.data, p...)
-	return len(p), nil
+	return b.buf.Write(p)
 }
 
 // Close marks the buffer as complete. Readers will return io.EOF instead of blocking
@@ -102,7 +102,9 @@ func (b *Buffer) Close() error {
 
 // New creates and returns a new Buffer
 func New() *Buffer {
-	buf := Buffer{}
+	buf := Buffer{
+		buf: newRing(nil),
+	}
 	buf.cond = sync.NewCond(&buf.mu)
 	return &buf
 }

@@ -35,20 +35,17 @@ func (h readerHeap) Peek() *reader {
 type reader struct {
 	buf   *Buffer
 	i     int
-	off   int64
+	off   int
 	chunk int
-	data  []byte
+	data  *ring
 	life
 }
 
 func (r *reader) Read(p []byte) (n int, err error) {
-	if len(r.data) == 0 {
+	if r.data.empty {
 		r.buf.fetch(r)
 	}
-	n = copy(p, r.data)
-	if r.data = r.data[n:]; len(r.data) == 0 {
-		err = io.EOF
-	}
+	n, err = r.data.Read(p)
 	if err == io.EOF {
 		if !r.alive() {
 			return n, err
@@ -56,7 +53,7 @@ func (r *reader) Read(p []byte) (n int, err error) {
 			err = nil
 		} else {
 			r.buf.fetch(r)
-			if len(r.data) > 0 {
+			if !r.data.empty {
 				err = nil
 			}
 		}
