@@ -9,6 +9,8 @@ import (
 
 // Reader provides an io.Reader whose methods MUST be concurrent-safe
 // with the Write method of the Writer from which it was generated.
+// It also MUST be safe for concurrent calls to Writer.Discard
+// for bytes which have already been read by this Reader.
 type Reader interface {
 
 	// Len returns the unread # of bytes in this Reader
@@ -32,12 +34,14 @@ type Writer interface {
 
 	// Discard drops the next n buffered bytes. It returns the actual number of
 	// bytes dropped and may return io.EOF if all remaining bytes have been
-	// discarded.
+	// discarded. Discard must be concurrent-safe with methods calls
+	// on generated Readers, when discarding bytes that have been read
+	// by all Readers.
 	Discard(int) (int, error)
 
 	// NextReader returns a Reader which reads a "snapshot" of the current written bytes
 	// (excluding discarded bytes). The Reader should work independently of the Writer
-	// and be concurrent safe with the Write method on the Writer.
+	// and be concurrent-safe with the Write method on the Writer.
 	NextReader() Reader
 
 	// Write writes the given bytes into the Writer's underlying buffer. Which will
