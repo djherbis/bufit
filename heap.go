@@ -13,8 +13,6 @@ func (h readerHeap) Swap(i, j int) {
 }
 
 func (h *readerHeap) Push(x interface{}) {
-	// Push and Pop use pointer receivers because they modify the slice's length,
-	// not just its contents.
 	r := x.(*reader)
 	r.i = len(*h)
 	*h = append(*h, r)
@@ -37,12 +35,12 @@ type reader struct {
 	i     int
 	off   int
 	chunk int
-	data  *ring
+	data  Reader
 	life
 }
 
 func (r *reader) Read(p []byte) (n int, err error) {
-	if r.data.empty {
+	if r.data.Len() == 0 {
 		r.buf.fetch(r)
 	}
 	n, err = r.data.Read(p)
@@ -53,7 +51,7 @@ func (r *reader) Read(p []byte) (n int, err error) {
 			err = nil
 		} else {
 			r.buf.fetch(r)
-			if !r.data.empty {
+			if r.data.Len() > 0 {
 				err = nil
 			}
 		}

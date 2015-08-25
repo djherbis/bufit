@@ -7,6 +7,19 @@ import (
 	"sync/atomic"
 )
 
+type Reader interface {
+	Len() int
+	Discard(int) (int, error)
+	io.Reader
+}
+
+type Writer interface {
+	Len() int
+	Discard(int) (int, error)
+	NextReader() Reader
+	io.Writer
+}
+
 // Buffer is used to provide multiple readers with access to a shared buffer.
 // Readers may join/leave at any time, however a joining reader will only
 // see whats currently in the buffer onwards. Data is evicted from the buffer
@@ -16,7 +29,7 @@ type Buffer struct {
 	cond *sync.Cond
 	off  int
 	rh   readerHeap
-	buf  *ring
+	buf  Writer
 	life
 }
 
@@ -41,8 +54,8 @@ func (b *Buffer) fetch(r *reader) {
 
 	r.off += r.chunk
 	diff := r.off - b.off
-	r.data = b.buf.clone()
-	r.data.shift(diff)
+	r.data = b.buf.NextReader()
+	r.data.Discard(diff)
 	r.chunk = r.data.Len()
 
 	heap.Fix(&b.rh, r.i)
@@ -62,7 +75,7 @@ func (b *Buffer) shift() {
 	}
 
 	if diff := b.rh.Peek().off - b.off; diff > 0 {
-		b.buf.shift(diff)
+		b.buf.Discard(diff)
 		b.off += diff
 	}
 }
@@ -77,7 +90,7 @@ func (b *Buffer) NextReader() io.ReadCloser {
 		buf:   b,
 		chunk: b.buf.Len(),
 		off:   b.off,
-		data:  b.buf.clone(),
+		data:  b.buf.NextReader(),
 	}
 	heap.Push(&b.rh, r)
 	return r
@@ -100,11 +113,16 @@ func (b *Buffer) Close() error {
 	return nil
 }
 
-// New creates and returns a new Buffer
-func New() *Buffer {
+// New creates and returns a new Buffer backed by the passed Writer
+func NewBuffer(w Writer) *Buffer {
 	buf := Buffer{
-		buf: newRing(nil),
+		buf: w,
 	}
 	buf.cond = sync.NewCond(&buf.mu)
 	return &buf
+}
+
+// New creates and returns a new Buffer
+func New() *Buffer {
+	return NewBuffer(newWriter(nil))
 }

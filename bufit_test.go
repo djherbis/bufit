@@ -12,16 +12,16 @@ import (
 )
 
 func ExampleBytes() {
-	buf := newRing(make([]byte, 0, 10))
+	buf := newWriter(make([]byte, 0, 10))
 	io.Copy(os.Stdout, buf)
-	io.Copy(os.Stdout, io.NewSectionReader(buf.clone(), 0, 100))
+	io.Copy(os.Stdout, io.NewSectionReader(*&buf, 0, 100))
 
 	io.WriteString(buf, "Hello ")
-	r := io.NewSectionReader(buf.clone(), 0, int64(buf.Len()))
+	r := io.NewSectionReader(*&buf, 0, int64(buf.Len()))
 	io.CopyN(os.Stdout, r, 5)
 	io.CopyN(os.Stdout, buf, 5)
 	io.WriteString(buf, "World")
-	r = io.NewSectionReader(buf.clone(), 0, int64(buf.Len()))
+	r = io.NewSectionReader(*&buf, 0, int64(buf.Len()))
 	io.CopyN(os.Stdout, r, 6)
 
 	io.WriteString(buf, "abcdefg")
@@ -29,7 +29,7 @@ func ExampleBytes() {
 	io.Copy(os.Stdout, buf)
 
 	io.WriteString(buf, "Hello World")
-	r = io.NewSectionReader(buf.clone(), 0, int64(buf.Len()))
+	r = io.NewSectionReader(*&buf, 0, int64(buf.Len()))
 	io.CopyN(os.Stdout, r, 5)
 	io.CopyN(os.Stdout, buf, 4)
 
@@ -112,7 +112,7 @@ func BenchmarkStdBuffer(b *testing.B) {
 
 func BenchmarkMyBytes(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		tryBuffer(newRing(nil))
+		tryBuffer(newWriter(nil))
 	}
 	b.ReportAllocs()
 }
@@ -126,7 +126,7 @@ func BenchmarkStdBytes(b *testing.B) {
 
 func BenchmarkFwdMyBytes(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		tryFwdBuffer(newRing(nil))
+		tryFwdBuffer(newWriter(nil))
 	}
 	b.ReportAllocs()
 }
