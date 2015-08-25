@@ -7,16 +7,42 @@ import (
 	"sync/atomic"
 )
 
+// Reader provides an io.Reader whose methods MUST be concurrent-safe
+// with the methods of the Writer from which it was generated.
 type Reader interface {
+
+	// Len returns the unread # of bytes in this Reader
 	Len() int
+
+	// Discard drops the next n bytes from the Reader, as if it were Read()
+	// it returns the # of bytes actually dropped. It may return io.EOF
+	// if all remaining bytes have been discarded.
 	Discard(int) (int, error)
+
+	// Read bytes into the provided buffer.
 	io.Reader
 }
 
+// Writer accepts bytes and generates Readers who consume those bytes.
+// Generated Readers methods must be concurrent-safe with the Writers methods.
 type Writer interface {
+
+	// Len returns the # of bytes buffered for Readers
 	Len() int
+
+	// Discard drops the next n buffered bytes. It returns the actual number of
+	// bytes dropped and may return io.EOF if all remaining bytes have been
+	// discarded.
 	Discard(int) (int, error)
+
+	// NextReader returns a Reader which reads a "snapshot" of the current written bytes
+	// (excluding discarded bytes). The Reader should work independently of the Writer
+	// and therefore be concurrent safe with operations on the Writer.
 	NextReader() Reader
+
+	// Write writes the given bytes into the Writer's underlying buffer. Which will
+	// be available for reading using NextReader() to grab a snapshot of the current
+	// written bytes.
 	io.Writer
 }
 
@@ -113,7 +139,7 @@ func (b *Buffer) Close() error {
 	return nil
 }
 
-// New creates and returns a new Buffer backed by the passed Writer
+// NewBuffer creates and returns a new Buffer backed by the passed Writer
 func NewBuffer(w Writer) *Buffer {
 	buf := Buffer{
 		buf: w,

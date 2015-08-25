@@ -19,9 +19,8 @@ func newWriter(p []byte) *writer {
 func split(a, b int, p []byte) (as, bs []byte) {
 	if a < b {
 		return p[a:b], nil
-	} else {
-		return p[a:], p[0:b]
 	}
+	return p[a:], p[0:b]
 }
 
 func (buf *writer) Len() int {
