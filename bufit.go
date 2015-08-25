@@ -8,7 +8,7 @@ import (
 )
 
 // Reader provides an io.Reader whose methods MUST be concurrent-safe
-// with the methods of the Writer from which it was generated.
+// with the Write method of the Writer from which it was generated.
 type Reader interface {
 
 	// Len returns the unread # of bytes in this Reader
@@ -24,7 +24,7 @@ type Reader interface {
 }
 
 // Writer accepts bytes and generates Readers who consume those bytes.
-// Generated Readers methods must be concurrent-safe with the Writers methods.
+// Generated Readers methods must be concurrent-safe with the Write method.
 type Writer interface {
 
 	// Len returns the # of bytes buffered for Readers
@@ -37,7 +37,7 @@ type Writer interface {
 
 	// NextReader returns a Reader which reads a "snapshot" of the current written bytes
 	// (excluding discarded bytes). The Reader should work independently of the Writer
-	// and therefore be concurrent safe with operations on the Writer.
+	// and be concurrent safe with the Write method on the Writer.
 	NextReader() Reader
 
 	// Write writes the given bytes into the Writer's underlying buffer. Which will
