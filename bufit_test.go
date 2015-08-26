@@ -160,7 +160,7 @@ func TestConcurrent(t *testing.T) {
 	var grp sync.WaitGroup
 	buf := New()
 
-	var rs []io.Reader
+	var rs []io.ReadCloser
 	for i := 0; i < 1000; i++ {
 		rs = append(rs, buf.NextReader())
 	}
@@ -170,8 +170,9 @@ func TestConcurrent(t *testing.T) {
 
 	for _, r := range rs {
 		grp.Add(1)
-		go func(r io.Reader) {
+		go func(r io.ReadCloser) {
 			defer grp.Done()
+			defer r.Close()
 			data, err := ioutil.ReadAll(r)
 			if err != nil {
 				t.Error(err)

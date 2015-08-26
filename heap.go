@@ -31,11 +31,11 @@ func (h readerHeap) Peek() *reader {
 }
 
 type reader struct {
-	buf   *Buffer
-	i     int
-	off   int
-	chunk int
-	data  Reader
+	buf  *Buffer
+	i    int
+	off  int
+	size int
+	data Reader
 	life
 }
 

@@ -74,7 +74,14 @@ func (b *Buffer) fetch(r *reader) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	for r.off+r.chunk-b.off == b.buf.Len() && b.alive() && r.alive() {
+	if r.alive() {
+		r.off += r.size
+		r.size = 0
+		heap.Fix(&b.rh, r.i)
+		b.shift()
+	}
+
+	for r.off == b.off+b.buf.Len() && b.alive() && r.alive() {
 		b.cond.Wait()
 	}
 
@@ -82,14 +89,9 @@ func (b *Buffer) fetch(r *reader) {
 		return
 	}
 
-	r.off += r.chunk
-	diff := r.off - b.off
 	r.data = b.buf.NextReader()
-	r.data.Discard(diff)
-	r.chunk = r.data.Len()
-
-	heap.Fix(&b.rh, r.i)
-	b.shift()
+	r.data.Discard(r.off - b.off)
+	r.size = r.data.Len()
 }
 
 func (b *Buffer) drop(r *reader) {
@@ -117,10 +119,10 @@ func (b *Buffer) NextReader() io.ReadCloser {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	r := &reader{
-		buf:   b,
-		chunk: b.buf.Len(),
-		off:   b.off,
-		data:  b.buf.NextReader(),
+		buf:  b,
+		size: b.buf.Len(),
+		off:  b.off,
+		data: b.buf.NextReader(),
 	}
 	heap.Push(&b.rh, r)
 	return r
