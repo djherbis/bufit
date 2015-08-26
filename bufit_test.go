@@ -192,6 +192,24 @@ func TestConcurrent(t *testing.T) {
 	grp.Wait()
 }
 
+func TestQuit(t *testing.T) {
+	buf := New()
+	r := buf.NextReader()
+
+	wait := make(chan struct{})
+	go func() {
+		io.Copy(ioutil.Discard, r)
+		close(wait)
+	}()
+
+	r.Close()
+	select {
+	case <-wait:
+	case <-time.After(100 * time.Millisecond):
+		t.Error("timed out waiting for Reader to Close")
+	}
+}
+
 func ExampleBuffer() {
 	// Start a new buffer
 	buf := New()
