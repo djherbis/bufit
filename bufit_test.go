@@ -57,103 +57,39 @@ func (b *badBuffer) Read(p []byte) (n int, err error) {
 }
 
 func BenchmarkBuffer(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		benchBuffer(1)
-	}
-	b.ReportAllocs()
-}
-
-func BenchmarkBuffer100(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		benchBuffer(100)
-	}
-	b.ReportAllocs()
-}
-
-func BenchmarkBuffer1000(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		benchBuffer(1000)
-	}
-	b.ReportAllocs()
-}
-
-func benchBuffer(n int) {
-	var grp sync.WaitGroup
 	buf := New()
+	data, _ := ioutil.ReadAll(io.LimitReader(rand.Reader, 32*1024))
+
 	go func() {
-		io.CopyN(buf, rand.Reader, 32*1024*100)
+		for i := 0; i < 1000; i++ {
+			buf.Write(data)
+		}
 		buf.Close()
 	}()
-	rs := []io.Reader{}
-	for i := 0; i < n; i++ {
-		rs = append(rs, buf.NextReader())
-	}
-	for _, rdr := range rs {
-		grp.Add(1)
-		go func(r io.Reader) {
-			defer grp.Done()
+
+	r := buf.NextReader()
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			r := buf.NextReader()
 			io.Copy(ioutil.Discard, r)
-		}(rdr)
-	}
-	grp.Wait()
-}
+			r.Close()
+		}
+	})
 
-func BenchmarkStdBuffer(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		r, w := io.Pipe()
-		go func() {
-			io.CopyN(w, rand.Reader, 32*1024*100)
-			w.Close()
-		}()
-		io.Copy(ioutil.Discard, r)
-	}
+	r.Close()
 	b.ReportAllocs()
 }
 
-func BenchmarkMyBytes(b *testing.B) {
+func BenchmarkReadWriter(b *testing.B) {
+	buf := newWriter(nil)
+	data, _ := ioutil.ReadAll(io.LimitReader(rand.Reader, 32*1024))
+	temp := make([]byte, 32*1024)
 	for i := 0; i < b.N; i++ {
-		tryBuffer(newWriter(nil))
+		buf.Write(data)
+		io.CopyBuffer(ioutil.Discard, buf, temp)
 	}
 	b.ReportAllocs()
-}
-
-func BenchmarkStdBytes(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		tryBuffer(bytes.NewBuffer(nil))
-	}
-	b.ReportAllocs()
-}
-
-func BenchmarkFwdMyBytes(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		tryFwdBuffer(newWriter(nil))
-	}
-	b.ReportAllocs()
-}
-
-func BenchmarkStdFwdBytes(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		tryFwdBuffer(bytes.NewBuffer(nil))
-	}
-	b.ReportAllocs()
-}
-
-const tries = 1000
-
-func tryFwdBuffer(buf io.ReadWriter) {
-	for i := 0; i < tries; i++ {
-		io.CopyN(buf, rand.Reader, 60*1024)
-		io.Copy(ioutil.Discard, buf)
-	}
-}
-
-func tryBuffer(buf io.ReadWriter) {
-	for i := 0; i < tries; i++ {
-		io.CopyN(buf, rand.Reader, 60*1024)
-		io.CopyN(ioutil.Discard, buf, 32*1024)
-		io.CopyN(buf, rand.Reader, 60*1024)
-	}
-	io.Copy(ioutil.Discard, buf)
 }
 
 func TestConcurrent(t *testing.T) {
