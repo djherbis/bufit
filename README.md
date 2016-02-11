@@ -6,6 +6,7 @@ Bufit
 [![Software License](https://img.shields.io/badge/license-MIT-brightgreen.svg)](LICENSE.txt)
 [![Build Status](https://travis-ci.org/djherbis/bufit.svg?branch=master)](https://travis-ci.org/djherbis/bufit) 
 [![Coverage Status](https://coveralls.io/repos/djherbis/bufit/badge.svg?branch=master)](https://coveralls.io/r/djherbis/bufit?branch=master)
+[![Go Report Card](https://goreportcard.com/badge/github.com/djherbis/bufit)](https://goreportcard.com/report/github.com/djherbis/bufit)
 
 Usage
 ------------
