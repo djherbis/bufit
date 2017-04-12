@@ -131,16 +131,25 @@ func (b *Buffer) NextReader() io.ReadCloser {
 // Write appends the given data to the buffer. All active readers will
 // see this write.
 func (b *Buffer) Write(p []byte) (int, error) {
+	if !b.alive() {
+		return 0, io.ErrClosedPipe
+	}
+
 	b.mu.Lock()
 	defer b.cond.Broadcast()
 	defer b.mu.Unlock()
+	if !b.alive() {
+		return 0, io.ErrClosedPipe
+	}
 	return b.buf.Write(p)
 }
 
 // Close marks the buffer as complete. Readers will return io.EOF instead of blocking
 // when they reach the end of the buffer.
 func (b *Buffer) Close() error {
+	b.mu.Lock()
 	defer b.cond.Broadcast()
+	defer b.mu.Unlock()
 	b.kill()
 	return nil
 }

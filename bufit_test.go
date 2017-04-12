@@ -128,7 +128,7 @@ func TestConcurrent(t *testing.T) {
 	grp.Wait()
 }
 
-func TestQuit(t *testing.T) {
+func TestQuitReader(t *testing.T) {
 	buf := New()
 	r := buf.NextReader()
 
@@ -143,6 +143,15 @@ func TestQuit(t *testing.T) {
 	case <-wait:
 	case <-time.After(100 * time.Millisecond):
 		t.Error("timed out waiting for Reader to Close")
+	}
+}
+
+func TestQuitWriter(t *testing.T) {
+	buf := New()
+	buf.Close()
+	_, err := io.WriteString(buf, ".")
+	if err != io.ErrClosedPipe {
+		t.Errorf("Writer after Close expected io.ErrClosedPipe but got %v", err)
 	}
 }
 
