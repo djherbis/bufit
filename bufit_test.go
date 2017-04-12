@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-func exampleBytes() {
+func ExampleWriter() {
 	buf := newWriter(make([]byte, 0, 10))
 	io.Copy(os.Stdout, buf)
 	io.Copy(os.Stdout, io.NewSectionReader(*&buf, 0, 100))
