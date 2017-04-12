@@ -121,6 +121,17 @@ func TestCappedBuffer(t *testing.T) {
 	}
 }
 
+func TestReadReaderAfterClose(t *testing.T) {
+	buf := New()
+	r := buf.NextReader()
+	r.Close()
+	p := make([]byte, 10)
+	n, err := r.Read(p)
+	if err != io.EOF {
+		t.Errorf("expected io.EOF got %v, %v", n, err)
+	}
+}
+
 func TestCloseReaderTwice(t *testing.T) {
 	buf := New()
 	r := buf.NextReader()
