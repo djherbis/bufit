@@ -92,6 +92,25 @@ func BenchmarkReadWriter(b *testing.B) {
 	b.ReportAllocs()
 }
 
+func TestAsWriter(t *testing.T) {
+	buf := New()
+	if n := buf.Len(); n != 0 {
+		t.Errorf("Len() returned unexpected %d", n)
+	}
+
+	io.WriteString(buf, "hello world")
+	if n := buf.Len(); n != 11 {
+		t.Errorf("Len() returned unexpected %d", n)
+	}
+
+	if n, err := buf.Discard(6); n != 6 {
+		t.Errorf("Discard(6) returned unexpected %d, %v", n, err)
+	}
+	if n := buf.Len(); n != 5 {
+		t.Errorf("Len() returned unexpected %d", n)
+	}
+}
+
 func TestConcurrent(t *testing.T) {
 	var grp sync.WaitGroup
 	buf := New()

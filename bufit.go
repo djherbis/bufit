@@ -154,6 +154,18 @@ func (b *Buffer) Close() error {
 	return nil
 }
 
+// Len returns the #  of bytes buffered for Readers
+func (b *Buffer) Len() int {
+	return b.buf.Len()
+}
+
+// Discard drops the next n buffered bytes. It returns the actual number of
+// bytes dropped and may return io.EOF if all remaining bytes have been
+// discarded.
+func (b *Buffer) Discard(n int) (int, error) {
+	return b.buf.Discard(n)
+}
+
 // NewBuffer creates and returns a new Buffer backed by the passed Writer
 func NewBuffer(w Writer) *Buffer {
 	buf := Buffer{
