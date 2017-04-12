@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-func ExampleBytes() {
+func exampleBytes() {
 	buf := newWriter(make([]byte, 0, 10))
 	io.Copy(os.Stdout, buf)
 	io.Copy(os.Stdout, io.NewSectionReader(*&buf, 0, 100))
@@ -71,9 +71,9 @@ func BenchmarkBuffer(b *testing.B) {
 
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			r := buf.NextReader()
-			io.Copy(ioutil.Discard, r)
-			r.Close()
+			rr := buf.NextReader()
+			io.Copy(ioutil.Discard, rr)
+			rr.Close()
 		}
 	})
 
