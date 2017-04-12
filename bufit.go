@@ -55,11 +55,13 @@ type Writer interface {
 // see whats currently in the buffer onwards. Data is evicted from the buffer
 // once all active readers have read that section.
 type Buffer struct {
-	mu   sync.RWMutex
-	cond *sync.Cond
-	off  int
-	rh   readerHeap
-	buf  Writer
+	mu    sync.Mutex
+	rwait *sync.Cond
+	wwait *sync.Cond
+	off   int
+	rh    readerHeap
+	buf   Writer
+	cap   int
 	life
 }
 
@@ -82,7 +84,7 @@ func (b *Buffer) fetch(r *reader) {
 	}
 
 	for r.off == b.off+b.buf.Len() && b.alive() && r.alive() {
-		b.cond.Wait()
+		b.rwait.Wait()
 	}
 
 	if !r.alive() {
@@ -96,6 +98,7 @@ func (b *Buffer) fetch(r *reader) {
 
 func (b *Buffer) drop(r *reader) {
 	b.mu.Lock()
+	defer b.rwait.Broadcast() // wake up and blocking reads
 	defer b.mu.Unlock()
 	heap.Remove(&b.rh, r.i)
 	b.shift()
@@ -109,6 +112,7 @@ func (b *Buffer) shift() {
 	if diff := b.rh.Peek().off - b.off; diff > 0 {
 		b.buf.Discard(diff)
 		b.off += diff
+		b.wwait.Broadcast()
 	}
 }
 
@@ -136,19 +140,43 @@ func (b *Buffer) Write(p []byte) (int, error) {
 	}
 
 	b.mu.Lock()
-	defer b.cond.Broadcast()
+	defer b.rwait.Broadcast()
 	defer b.mu.Unlock()
 	if !b.alive() {
 		return 0, io.ErrClosedPipe
 	}
-	return b.buf.Write(p)
+
+	var m, n int
+	var err error
+	for len(p[n:]) > 0 && err == nil { // bytes left to write
+
+		for b.cap > 0 && b.buf.Len() == b.cap && b.alive() { // wait for space
+			b.wwait.Wait()
+		}
+
+		if !b.alive() {
+			return n, io.ErrClosedPipe
+		}
+
+		if b.cap == 0 || b.cap-b.buf.Len() > len(p[n:]) { // remaining bytes fit in gap, or no cap.
+			m, err := b.buf.Write(p[n:])
+			return n + m, err
+		}
+
+		gap := b.cap - b.buf.Len() // there is a cap, and we didn't fit in the gap
+		m, err = b.buf.Write(p[n : n+gap])
+		n += m
+		b.rwait.Broadcast() // wake up readers to read the partial write
+	}
+	return n, err
 }
 
 // Close marks the buffer as complete. Readers will return io.EOF instead of blocking
 // when they reach the end of the buffer.
 func (b *Buffer) Close() error {
 	b.mu.Lock()
-	defer b.cond.Broadcast()
+	defer b.rwait.Broadcast() // readers should wake up since there will be no more writes
+	defer b.wwait.Broadcast() // writers should wake up since blocking writes should unblock
 	defer b.mu.Unlock()
 	b.kill()
 	return nil
@@ -156,14 +184,28 @@ func (b *Buffer) Close() error {
 
 // NewBuffer creates and returns a new Buffer backed by the passed Writer
 func NewBuffer(w Writer) *Buffer {
-	buf := Buffer{
-		buf: w,
-	}
-	buf.cond = sync.NewCond(&buf.mu)
-	return &buf
+	return NewCappedBuffer(w, 0)
 }
 
 // New creates and returns a new Buffer
 func New() *Buffer {
 	return NewBuffer(newWriter(nil))
+}
+
+// NewCapped creates a new in-memory Buffer whose Write() call blocks to prevent Len() from exceeding
+// the passed capacity
+func NewCapped(cap int) *Buffer {
+	return NewCappedBuffer(newWriter(nil), cap)
+}
+
+// NewCappedBuffer creates a new Buffer whose Write() call blocks to prevent Len() from exceeding
+// the passed capacity
+func NewCappedBuffer(w Writer, cap int) *Buffer {
+	buf := Buffer{
+		buf: w,
+		cap: cap,
+	}
+	buf.rwait = sync.NewCond(&buf.mu)
+	buf.wwait = sync.NewCond(&buf.mu)
+	return &buf
 }

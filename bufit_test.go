@@ -92,6 +92,28 @@ func BenchmarkReadWriter(b *testing.B) {
 	b.ReportAllocs()
 }
 
+func TestCappedBuffer(t *testing.T) {
+	data := []byte("Hello World")
+	buf := NewCapped(5)
+
+	go func() {
+		for i := 0; i < 5; i++ {
+			buf.Write(data)
+		}
+		buf.Close()
+	}()
+
+	r := buf.NextReader()
+	res, err := ioutil.ReadAll(r)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if !bytes.Equal(res, bytes.Repeat(data, 5)) {
+		t.Errorf("expected %s got %s", string(bytes.Repeat(data, 5)), string(res))
+	}
+}
+
 func TestConcurrent(t *testing.T) {
 	var grp sync.WaitGroup
 	buf := New()
@@ -150,6 +172,19 @@ func TestQuitWriter(t *testing.T) {
 	buf := New()
 	buf.Close()
 	_, err := io.WriteString(buf, ".")
+	if err != io.ErrClosedPipe {
+		t.Errorf("Writer after Close expected io.ErrClosedPipe but got %v", err)
+	}
+}
+
+func TestQuitCappedWriter(t *testing.T) {
+	buf := NewCapped(2)
+	go func() {
+		// wait until blocking write has started
+		<-time.After(100 * time.Millisecond)
+		buf.Close()
+	}()
+	_, err := io.WriteString(buf, "hello world")
 	if err != io.ErrClosedPipe {
 		t.Errorf("Writer after Close expected io.ErrClosedPipe but got %v", err)
 	}

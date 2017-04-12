@@ -62,7 +62,6 @@ func (r *reader) Read(p []byte) (n int, err error) {
 // break calls to read.
 func (r *reader) Close() error {
 	r.kill()
-	r.buf.cond.Broadcast()
 	r.buf.drop(r)
 	return nil
 }
