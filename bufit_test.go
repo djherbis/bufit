@@ -121,6 +121,13 @@ func TestCappedBuffer(t *testing.T) {
 	}
 }
 
+func TestCloseReaderTwice(t *testing.T) {
+	buf := New()
+	r := buf.NextReader()
+	r.Close()
+	r.Close()
+}
+
 func TestConcurrent(t *testing.T) {
 	var grp sync.WaitGroup
 	buf := New()

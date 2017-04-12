@@ -1,6 +1,9 @@
 package bufit
 
-import "io"
+import (
+	"io"
+	"sync"
+)
 
 type readerHeap []*reader
 
@@ -31,11 +34,12 @@ func (h readerHeap) Peek() *reader {
 }
 
 type reader struct {
-	buf  *Buffer
-	i    int
-	off  int
-	size int
-	data Reader
+	buf       *Buffer
+	i         int
+	off       int
+	size      int
+	data      Reader
+	closeOnce sync.Once
 	life
 }
 
@@ -61,7 +65,9 @@ func (r *reader) Read(p []byte) (n int, err error) {
 
 // break calls to read.
 func (r *reader) Close() error {
-	r.kill()
-	r.buf.drop(r)
+	r.closeOnce.Do(func() {
+		r.kill()
+		r.buf.drop(r)
+	})
 	return nil
 }
