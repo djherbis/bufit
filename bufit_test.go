@@ -98,7 +98,14 @@ func TestCappedBuffer(t *testing.T) {
 
 	go func() {
 		for i := 0; i < 5; i++ {
-			buf.Write(data)
+			n, err := buf.Write(data)
+			if err != nil {
+				t.Errorf("expected no error, got %s", err)
+			}
+			if n != len(data) {
+				t.Errorf("expected %d bytes to be written, got %d", len(data), n)
+			}
+
 		}
 		buf.Close()
 	}()
