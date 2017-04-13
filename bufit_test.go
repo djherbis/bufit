@@ -56,6 +56,29 @@ func (b *badBuffer) Read(p []byte) (n int, err error) {
 	return n, err
 }
 
+func BenchmarkBufferNoPressure(b *testing.B) {
+	data, _ := ioutil.ReadAll(io.LimitReader(rand.Reader, 32*1024))
+
+	buf := NewCapped(len(data))
+
+	go func() {
+		for i := 0; i < 1000; i++ {
+			buf.Write(data)
+		}
+		buf.Close()
+	}()
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			rr := buf.NextReader()
+			io.Copy(ioutil.Discard, rr)
+			rr.Close()
+		}
+	})
+
+	b.ReportAllocs()
+}
+
 func BenchmarkBuffer(b *testing.B) {
 	buf := New()
 	data, _ := ioutil.ReadAll(io.LimitReader(rand.Reader, 32*1024))
