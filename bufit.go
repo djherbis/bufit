@@ -176,6 +176,13 @@ func (b *Buffer) NextReaderFromNow() io.ReadCloser {
 	return r
 }
 
+// Len returns the current size of the buffer. This is safe to call concurrently with all other methods.
+func (b *Buffer) Len() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Len()
+}
+
 // Write appends the given data to the buffer. All active readers will
 // see this write.
 func (b *Buffer) Write(p []byte) (int, error) {

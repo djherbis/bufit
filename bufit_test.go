@@ -99,11 +99,15 @@ func TestCappedBuffer(t *testing.T) {
 	go func() {
 		for i := 0; i < 5; i++ {
 			n, err := buf.Write(data)
+			l := buf.Len()
 			if err != nil {
 				t.Errorf("expected no error, got %s", err)
 			}
 			if n != len(data) {
 				t.Errorf("expected %d bytes to be written, got %d", len(data), n)
+			}
+			if l > 5 {
+				t.Errorf("length shouldn't exceed cap, but got %d", l)
 			}
 
 		}
@@ -143,9 +147,11 @@ func TestNextReaderFromNowOnlySeesNewWrites(t *testing.T) {
 	data := []byte("hello world")
 	buf := New()
 	r := buf.NextReader()
-	defer r.Close()
 
 	buf.Write(data)
+	if buf.Len() != len(data) {
+		t.Errorf("expected len to be %d but got %d", len(data), buf.Len())
+	}
 
 	r2 := buf.NextReaderFromNow()
 
@@ -160,6 +166,17 @@ func TestNextReaderFromNowOnlySeesNewWrites(t *testing.T) {
 	if !bytes.Equal(out, data) {
 		t.Errorf("expected %s, got %s", data, out)
 	}
+
+	if buf.Len() != len(data)*2 {
+		t.Errorf("expected len to be %d but got %d", len(data)*2, buf.Len())
+	}
+
+	r.Close()
+
+	if buf.Len() != 0 {
+		t.Errorf("expected len to be %d but got %d", 0, buf.Len())
+	}
+
 }
 
 func TestReaderClosesWriter(t *testing.T) {
