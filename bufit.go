@@ -63,6 +63,7 @@ type Buffer struct {
 	buf   Writer
 	cap   int
 	life
+	callback atomic.Value
 }
 
 type life struct {
@@ -98,6 +99,13 @@ func (b *Buffer) fetch(r *reader) {
 
 func (b *Buffer) drop(r *reader) {
 	b.mu.Lock()
+
+	if len(b.rh) == 1 { // this is the last reader
+		if call := b.callback.Load(); call != nil { // callback is registered
+			defer call.(func() error)() // run this after we've unlocked
+		}
+	}
+
 	defer b.rwait.Broadcast() // wake up and blocking reads
 	defer b.mu.Unlock()
 	heap.Remove(&b.rh, r.i)
@@ -114,6 +122,21 @@ func (b *Buffer) shift() {
 		b.off += diff
 		b.wwait.Broadcast()
 	}
+}
+
+// NumReaders returns the number of readers returned by NextReader() which have not called Reader.Close().
+// This method is safe to call concurrently with all methods.
+func (b *Buffer) NumReaders() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return len(b.rh)
+}
+
+// OnLastReaderClose registers the passed callback to be run after any call to Reader.Close() which drops the NumReaders() to 0.
+// This method is safe to call concurrently with all other methods and Reader methods, however it's only guaranteed to be triggered if it completes before
+// the Reader.Close call which would trigger it.
+func (b *Buffer) OnLastReaderClose(runOnLastClose func() error) {
+	b.callback.Store(runOnLastClose)
 }
 
 // NextReader returns a new ReadCloser for this shared buffer.

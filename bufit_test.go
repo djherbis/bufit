@@ -139,6 +139,76 @@ func TestCloseReaderTwice(t *testing.T) {
 	r.Close()
 }
 
+func TestReaderClosesWriter(t *testing.T) {
+	buf := NewCapped(1)
+	defer buf.Close()
+
+	wait := make(chan struct{})
+
+	go func() {
+		// make sure blocking writes get canceled
+		if _, err := io.WriteString(buf, "hello"); err != io.ErrClosedPipe {
+			t.Errorf("expected %s got %s", io.ErrClosedPipe, err)
+		}
+		close(wait)
+	}()
+
+	buf.OnLastReaderClose(buf.Close)
+	buf.NextReader().Close() // should close the blocking write
+
+	select {
+	case <-wait:
+	case <-time.After(100 * time.Millisecond):
+		t.Errorf("write didn't break in time")
+	}
+}
+
+func assertNumReaders(n int, buf *Buffer, t *testing.T) {
+	if v := buf.NumReaders(); v != n {
+		t.Errorf("expected %d readers, found %d", n, v)
+	}
+}
+
+func TestCloseCallback(t *testing.T) {
+	called := false
+	buf := New()
+	buf.OnLastReaderClose(func() error {
+		called = true
+		return nil
+	})
+
+	assertNumReaders(0, buf, t)
+
+	lr := buf.NextReader()
+	assertNumReaders(1, buf, t)
+	lr.Close()
+	assertNumReaders(0, buf, t)
+	if !called {
+		t.Errorf("expected callback to be called")
+	}
+
+	lr = buf.NextReader()
+	assertNumReaders(1, buf, t)
+	called = false
+
+	for i := 0; i < 10; i++ {
+		r := buf.NextReader()
+		assertNumReaders(2, buf, t)
+		r.Close()
+		assertNumReaders(1, buf, t)
+		if called {
+			t.Errorf("expected callback to not be called")
+		}
+	}
+
+	assertNumReaders(1, buf, t)
+	lr.Close()
+	assertNumReaders(0, buf, t)
+	if !called {
+		t.Errorf("expected callback to be called")
+	}
+}
+
 func TestConcurrent(t *testing.T) {
 	var grp sync.WaitGroup
 	buf := New()
