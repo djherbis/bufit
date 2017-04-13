@@ -139,9 +139,12 @@ func (b *Buffer) OnLastReaderClose(runOnLastClose func() error) {
 	b.callback.Store(runOnLastClose)
 }
 
-// NextReader returns a new ReadCloser for this shared buffer.
+// NextReader returns a new io.ReadCloser for this shared buffer.
 // Read/Close are safe to call concurrently with the buffers Write/Close methods.
 // Read calls will block if the Buffer is not Closed and contains no data.
+// Note that the returned reader sees all data that is currently in the buffer,
+// data is only dropped out of the buffer once all active readers point to
+// locations in the buffer after that section.
 func (b *Buffer) NextReader() io.ReadCloser {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -151,6 +154,24 @@ func (b *Buffer) NextReader() io.ReadCloser {
 		off:  b.off,
 		data: b.buf.NextReader(),
 	}
+	heap.Push(&b.rh, r)
+	return r
+}
+
+// NextReaderFromNow returns a new io.ReadCloser for this shared buffer.
+// Unlike NextReader(), this reader will only see writes which occur after this reader is returned
+// even if there is other data in the buffer. In other words, this reader points to the end
+// of the buffer.
+func (b *Buffer) NextReaderFromNow() io.ReadCloser {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	l := b.buf.Len()
+	r := &reader{
+		buf:  b,
+		off:  b.off + l,
+		data: b.buf.NextReader(),
+	}
+	r.data.Discard(l)
 	heap.Push(&b.rh, r)
 	return r
 }

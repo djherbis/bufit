@@ -139,6 +139,29 @@ func TestCloseReaderTwice(t *testing.T) {
 	r.Close()
 }
 
+func TestNextReaderFromNowOnlySeesNewWrites(t *testing.T) {
+	data := []byte("hello world")
+	buf := New()
+	r := buf.NextReader()
+	defer r.Close()
+
+	buf.Write(data)
+
+	r2 := buf.NextReaderFromNow()
+
+	buf.Write(data)
+	buf.Close()
+
+	out, err := ioutil.ReadAll(r2)
+	if err != nil {
+		t.Errorf("expected no error, got %s", err)
+	}
+
+	if !bytes.Equal(out, data) {
+		t.Errorf("expected %s, got %s", data, out)
+	}
+}
+
 func TestReaderClosesWriter(t *testing.T) {
 	buf := NewCapped(1)
 	defer buf.Close()
