@@ -199,7 +199,53 @@ func TestNextReaderFromNowOnlySeesNewWrites(t *testing.T) {
 	if buf.Len() != 0 {
 		t.Errorf("expected len to be %d but got %d", 0, buf.Len())
 	}
+}
 
+func TestNextReaderKeepNewWrites(t *testing.T) {
+	data := []byte("123456789a")
+	buf := NewCapped(10)
+	keep := 5
+	expect := data[len(data)-keep:]
+	buf.Keep(keep)
+	buf.Keep(11) // Ignore, bigger than cap
+	buf.Keep(-1) // Ignore, not positive
+
+	buf.Write(data)
+	if buf.Len() != len(data) {
+		t.Errorf("expected len to be %d but got %d", len(data), buf.Len())
+	}
+	buf.Close()
+
+	r := buf.NextReader()
+	io.Copy(ioutil.Discard, r)
+
+	if buf.Len() != len(expect) {
+		t.Errorf("expected len to be %d but got %d", len(expect), buf.Len())
+	}
+
+	r.Close()
+
+	for i := 0; i < 5; i++ {
+		r2 := buf.NextReader()
+		out, err := ioutil.ReadAll(r2)
+		if err != nil {
+			t.Errorf("expected no error, got %s", err)
+		}
+
+		if !bytes.Equal(out, expect) {
+			t.Errorf("expected %s, got %s", expect, out)
+		}
+
+		if buf.Len() != len(expect) {
+			t.Errorf("expected len to be %d but got %d", len(expect), buf.Len())
+		}
+
+		r2.Close()
+
+		if buf.Len() != len(expect) {
+			t.Errorf("expected len to be %d but got %d", len(expect), buf.Len())
+		}
+	}
 }
 
 func TestReaderClosesWriter(t *testing.T) {

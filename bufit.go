@@ -62,6 +62,7 @@ type Buffer struct {
 	rh    readerHeap
 	buf   Writer
 	cap   int
+	keep  int
 	life
 	callback atomic.Value
 }
@@ -72,6 +73,23 @@ type life struct {
 
 func (l *life) alive() bool { return atomic.LoadInt32(&l.state) == 0 }
 func (l *life) kill()       { atomic.AddInt32(&l.state, 1) }
+
+// Keep sets the minimum amount of bytes to keep in the buffer even if all
+// other current readers have read those bytes. This allows new readers
+// to join slightly behind.
+// Keep is safe to call concurrently with other methods.
+// Fewer than keep bytes may be in the buffer if less than keep bytes have
+// been written since keep was set.
+// If this buffer has a cap, it is invalid to call this method with a keep >= cap
+// since the buffer would never be able to write new bytes once it reached
+// the cap.
+func (b *Buffer) Keep(keep int) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if keep >= 0 && (b.cap == 0 || keep < b.cap) {
+		b.keep = keep
+	}
+}
 
 func (b *Buffer) fetch(r *reader) {
 	b.mu.Lock()
@@ -113,11 +131,15 @@ func (b *Buffer) drop(r *reader) {
 }
 
 func (b *Buffer) shift() {
-	if b.rh.Len() == 0 {
+	l := b.buf.Len()
+	if l == 0 || l == b.keep {
 		return
 	}
 
 	if diff := b.rh.Peek().off - b.off; diff > 0 {
+		if l < b.keep+diff {
+			diff = l - b.keep
+		}
 		b.buf.Discard(diff)
 		b.off += diff
 		b.wwait.Broadcast()
