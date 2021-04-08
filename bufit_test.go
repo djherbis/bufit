@@ -201,6 +201,20 @@ func TestNextReaderFromNowOnlySeesNewWrites(t *testing.T) {
 	}
 }
 
+func TestDontPanicWhenLastReaderDropsOnNonEmptyBuffer(t *testing.T) {
+	data := []byte("hello world")
+	buf := New()
+	r := buf.NextReader()
+
+	buf.Write(data)
+	if buf.Len() != len(data) {
+		t.Errorf("expected len to be %d but got %d", len(data), buf.Len())
+	}
+
+	buf.Close()
+	r.Close()
+}
+
 func TestNextReaderKeepNewWrites(t *testing.T) {
 	data := []byte("123456789a")
 	buf := NewCapped(10)

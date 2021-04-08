@@ -126,13 +126,14 @@ func (b *Buffer) drop(r *reader) {
 
 	defer b.rwait.Broadcast() // wake up and blocking reads
 	defer b.mu.Unlock()
+	b.shift() // remove bytes read if this was the peek
 	heap.Remove(&b.rh, r.i)
-	b.shift()
+	b.shift() // shift to next peek
 }
 
 func (b *Buffer) shift() {
 	l := b.buf.Len()
-	if l == 0 || l == b.keep {
+	if l == 0 || l == b.keep || b.rh.Len() == 0 {
 		return
 	}
 
