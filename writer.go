@@ -8,6 +8,18 @@ type writer struct {
 	data      []byte
 }
 
+// NewMemoryWriter returns a new Writer for use with NewBuffer that internally
+// stores bytes in a []byte. The given []byte will be the initial buffer used.
+// It's a good idea to preallocate the normal size of your buffer here.
+// ex. NewMemoryWriter(make([]byte, 0, CAPACITY)) where CAPACITY is large
+// enough for Keep() + the number of buffered Write chunks
+// you expect to need to hold in the buffer at any given time.
+// This saves swapping the internal buffer out for a larger one as capacity
+// needs grow, this means less large locking copies of the internal buffer.
+func NewMemoryWriter(p []byte) Writer {
+	return newWriter(p)
+}
+
 func newWriter(p []byte) *writer {
 	return &writer{
 		empty: len(p) == 0,

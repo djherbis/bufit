@@ -263,13 +263,13 @@ func NewBuffer(w Writer) *Buffer {
 
 // New creates and returns a new Buffer
 func New() *Buffer {
-	return NewBuffer(newWriter(nil))
+	return NewBuffer(NewMemoryWriter(nil))
 }
 
 // NewCapped creates a new in-memory Buffer whose Write() call blocks to prevent Len() from exceeding
 // the passed capacity
 func NewCapped(cap int) *Buffer {
-	return NewCappedBuffer(newWriter(nil), cap)
+	return NewCappedBuffer(NewMemoryWriter(nil), cap)
 }
 
 // NewCappedBuffer creates a new Buffer whose Write() call blocks to prevent Len() from exceeding
