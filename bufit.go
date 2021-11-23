@@ -133,7 +133,7 @@ func (b *Buffer) drop(r *reader) {
 
 func (b *Buffer) shift() {
 	l := b.buf.Len()
-	if l == 0 || l == b.keep || b.rh.Len() == 0 {
+	if l == 0 || l <= b.keep || b.rh.Len() == 0 {
 		return
 	}
 
