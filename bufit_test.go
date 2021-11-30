@@ -14,14 +14,14 @@ import (
 func ExampleWriter() {
 	buf := newWriter(make([]byte, 0, 10))
 	io.Copy(os.Stdout, buf)
-	io.Copy(os.Stdout, io.NewSectionReader(*&buf, 0, 100))
+	io.Copy(os.Stdout, io.NewSectionReader(buf, 0, 100))
 
 	io.WriteString(buf, "Hello ")
-	r := io.NewSectionReader(*&buf, 0, int64(buf.Len()))
+	r := io.NewSectionReader(buf, 0, int64(buf.Len()))
 	io.CopyN(os.Stdout, r, 5)
 	io.CopyN(os.Stdout, buf, 5)
 	io.WriteString(buf, "World")
-	r = io.NewSectionReader(*&buf, 0, int64(buf.Len()))
+	r = io.NewSectionReader(buf, 0, int64(buf.Len()))
 	io.CopyN(os.Stdout, r, 6)
 
 	io.WriteString(buf, "abcdefg")
@@ -29,7 +29,7 @@ func ExampleWriter() {
 	io.Copy(os.Stdout, buf)
 
 	io.WriteString(buf, "Hello World")
-	r = io.NewSectionReader(*&buf, 0, int64(buf.Len()))
+	r = io.NewSectionReader(buf, 0, int64(buf.Len()))
 	io.CopyN(os.Stdout, r, 5)
 	io.CopyN(os.Stdout, buf, 4)
 
@@ -38,22 +38,6 @@ func ExampleWriter() {
 	io.Copy(os.Stdout, buf)
 	//Output:
 	// HelloHello World WorldabcdefgHelloHello Worldabcdefg
-}
-
-type badBuffer []byte
-
-func (b *badBuffer) Write(p []byte) (int, error) {
-	*b = append(*b, p...)
-	return len(p), nil
-}
-
-func (b *badBuffer) Read(p []byte) (n int, err error) {
-	n = copy(p, *b)
-	*b = (*b)[n:]
-	if len(*b) == 0 {
-		err = io.EOF
-	}
-	return n, err
 }
 
 func BenchmarkBufferNoPressure(b *testing.B) {
